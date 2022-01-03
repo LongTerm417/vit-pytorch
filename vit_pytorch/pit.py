@@ -129,14 +129,15 @@ class PiT(nn.Module):
         mlp_dim,
         dim_head = 64,
         dropout = 0.,
-        emb_dropout = 0.
+        emb_dropout = 0.,
+        channels = 3
     ):
         super().__init__()
         assert image_size % patch_size == 0, 'Image dimensions must be divisible by the patch size.'
         assert isinstance(depth, tuple), 'depth must be a tuple of integers, specifying the number of blocks before each downsizing'
         heads = cast_tuple(heads, len(depth))
 
-        patch_dim = 3 * patch_size ** 2
+        patch_dim = channels * patch_size ** 2
 
         self.to_patch_embedding = nn.Sequential(
             nn.Unfold(kernel_size = patch_size, stride = patch_size // 2),
@@ -175,7 +176,7 @@ class PiT(nn.Module):
 
         cls_tokens = repeat(self.cls_token, '() n d -> b n d', b = b)
         x = torch.cat((cls_tokens, x), dim=1)
-        x += self.pos_embedding
+        x += self.pos_embedding[:, :n+1]
         x = self.dropout(x)
 
         x = self.layers(x)

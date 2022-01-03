@@ -1,5 +1,39 @@
 <img src="./images/vit.gif" width="500px"></img>
 
+## Table of Contents
+
+- [Vision Transformer - Pytorch](#vision-transformer---pytorch)
+- [Install](#install)
+- [Usage](#usage)
+- [Parameters](#parameters)
+- [Distillation](#distillation)
+- [Deep ViT](#deep-vit)
+- [CaiT](#cait)
+- [Token-to-Token ViT](#token-to-token-vit)
+- [CCT](#cct)
+- [Cross ViT](#cross-vit)
+- [PiT](#pit)
+- [LeViT](#levit)
+- [CvT](#cvt)
+- [Twins SVT](#twins-svt)
+- [CrossFormer](#crossformer)
+- [RegionViT](#regionvit)
+- [NesT](#nest)
+- [MobileViT](#mobilevit)
+- [Masked Autoencoder](#masked-autoencoder)
+- [Simple Masked Image Modeling](#simple-masked-image-modeling)
+- [Masked Patch Prediction](#masked-patch-prediction)
+- [Adaptive Token Sampling](#adaptive-token-sampling)
+- [Vision Transformer for Small Datasets](#vision-transformer-for-small-datasets)
+- [Dino](#dino)
+- [Accessing Attention](#accessing-attention)
+- [Research Ideas](#research-ideas)
+  * [Efficient Attention](#efficient-attention)
+  * [Combining with other Transformer improvements](#combining-with-other-transformer-improvements)
+- [FAQ](#faq)
+- [Resources](#resources)
+- [Citations](#citations)
+
 ## Vision Transformer - Pytorch
 
 Implementation of <a href="https://openreview.net/pdf?id=YicbFdNTTy">Vision Transformer</a>, a simple way to achieve SOTA in vision classification with only a single transformer encoder, in Pytorch. Significance is further explained in <a href="https://www.youtube.com/watch?v=TrdevFK_am4">Yannic Kilcher's</a> video. There's really not much to code here, but may as well lay it out for everyone so we expedite the attention revolution.
@@ -62,6 +96,7 @@ Dropout rate.
 Embedding dropout rate.
 - `pool`: string, either `cls` token pooling or `mean` pooling
 
+
 ## Distillation
 
 <img src="./images/distill.png" width="300px"></img>
@@ -117,6 +152,7 @@ You can also use the handy `.to_vit` method on the `DistillableViT` instance to 
 v = v.to_vit()
 type(v) # <class 'vit_pytorch.vit_pytorch.ViT'>
 ```
+
 
 ## Deep ViT
 
@@ -200,6 +236,61 @@ img = torch.randn(1, 3, 224, 224)
 
 preds = v(img) # (1, 1000)
 ```
+
+## CCT
+<img src="https://raw.githubusercontent.com/SHI-Labs/Compact-Transformers/main/images/model_sym.png" width="400px"></img>
+
+<a href="https://arxiv.org/abs/2104.05704">CCT</a> proposes compact transformers
+by using convolutions instead of patching and performing sequence pooling. This
+allows for CCT to have high accuracy and a low number of parameters.
+
+You can use this with two methods
+```python
+import torch
+from vit_pytorch.cct import CCT
+
+model = CCT(
+        img_size=224,
+        embedding_dim=384,
+        n_conv_layers=2,
+        kernel_size=7,
+        stride=2,
+        padding=3,
+        pooling_kernel_size=3,
+        pooling_stride=2,
+        pooling_padding=1,
+        num_layers=14,
+        num_heads=6,
+        mlp_radio=3.,
+        num_classes=1000,
+        positional_embedding='learnable', # ['sine', 'learnable', 'none']
+        )
+```
+
+Alternatively you can use one of several pre-defined models `[2,4,6,7,8,14,16]`
+which pre-define the number of layers, number of attention heads, the mlp ratio,
+and the embedding dimension.
+
+```python
+import torch
+from vit_pytorch.cct import cct_14
+
+model = cct_14(
+        img_size=224,
+        n_conv_layers=1,
+        kernel_size=7,
+        stride=2,
+        padding=3,
+        pooling_kernel_size=3,
+        pooling_stride=2,
+        pooling_padding=1,
+        num_classes=1000,
+        positional_embedding='learnable', # ['sine', 'learnable', 'none']  
+        )
+```
+<a href="https://github.com/SHI-Labs/Compact-Transformers">Official
+Repository</a> includes links to pretrained model checkpoints.
+
 
 ## Cross ViT
 
@@ -378,6 +469,198 @@ img = torch.randn(1, 3, 224, 224)
 pred = model(img) # (1, 1000)
 ```
 
+## RegionViT
+
+<img src="./images/regionvit.png" width="400px"></img>
+
+<img src="./images/regionvit2.png" width="400px"></img>
+
+<a href="https://arxiv.org/abs/2106.02689">This paper</a> proposes to divide up the feature map into local regions, whereby the local tokens attend to each other. Each local region has its own regional token which then attends to all its local tokens, as well as other regional tokens.
+
+You can use it as follows
+
+```python
+import torch
+from vit_pytorch.regionvit import RegionViT
+
+model = RegionViT(
+    dim = (64, 128, 256, 512),      # tuple of size 4, indicating dimension at each stage
+    depth = (2, 2, 8, 2),           # depth of the region to local transformer at each stage
+    window_size = 7,                # window size, which should be either 7 or 14
+    num_classes = 1000,             # number of output classes
+    tokenize_local_3_conv = False,  # whether to use a 3 layer convolution to encode the local tokens from the image. the paper uses this for the smaller models, but uses only 1 conv (set to False) for the larger models
+    use_peg = False,                # whether to use positional generating module. they used this for object detection for a boost in performance
+)
+
+img = torch.randn(1, 3, 224, 224)
+
+pred = model(img) # (1, 1000)
+```
+
+## CrossFormer
+
+<img src="./images/crossformer.png" width="400px"></img>
+
+<img src="./images/crossformer2.png" width="400px"></img>
+
+This <a href="https://arxiv.org/abs/2108.00154">paper</a> beats PVT and Swin using alternating local and global attention. The global attention is done across the windowing dimension for reduced complexity, much like the scheme used for axial attention.
+
+They also have cross-scale embedding layer, which they shown to be a generic layer that can improve all vision transformers. Dynamic relative positional bias was also formulated to allow the net to generalize to images of greater resolution.
+
+```python
+import torch
+from vit_pytorch.crossformer import CrossFormer
+
+model = CrossFormer(
+    num_classes = 1000,                # number of output classes
+    dim = (64, 128, 256, 512),         # dimension at each stage
+    depth = (2, 2, 8, 2),              # depth of transformer at each stage
+    global_window_size = (8, 4, 2, 1), # global window sizes at each stage
+    local_window_size = 7,             # local window size (can be customized for each stage, but in paper, held constant at 7 for all stages)
+)
+
+img = torch.randn(1, 3, 224, 224)
+
+pred = model(img) # (1, 1000)
+```
+
+## NesT
+
+<img src="./images/nest.png" width="400px"></img>
+
+This <a href="https://arxiv.org/abs/2105.12723">paper</a> decided to process the image in hierarchical stages, with attention only within tokens of local blocks, which aggregate as it moves up the heirarchy. The aggregation is done in the image plane, and contains a convolution and subsequent maxpool to allow it to pass information across the boundary.
+
+You can use it with the following code (ex. NesT-T)
+
+```python
+import torch
+from vit_pytorch.nest import NesT
+
+nest = NesT(
+    image_size = 224,
+    patch_size = 4,
+    dim = 96,
+    heads = 3,
+    num_hierarchies = 3,        # number of hierarchies
+    block_repeats = (8, 4, 1),  # the number of transformer blocks at each heirarchy, starting from the bottom
+    num_classes = 1000
+)
+
+img = torch.randn(1, 3, 224, 224)
+
+pred = nest(img) # (1, 1000)
+```
+
+## MobileViT
+
+<img src="./images/mbvit.png" width="400px"></img>
+
+This <a href="https://arxiv.org/abs/2110.02178">paper</a> introduce MobileViT, a light-weight and general purpose vision transformer for mobile devices. MobileViT presents a different
+perspective for the global processing of information with transformers.
+
+You can use it with the following code (ex. mobilevit_xs)
+
+```python
+import torch
+from vit_pytorch.mobile_vit import MobileViT
+
+mbvit_xs = MobileViT(
+    image_size = (256, 256),
+    dims = [96, 120, 144],
+    channels = [16, 32, 48, 48, 64, 64, 80, 80, 96, 96, 384],
+    num_classes = 1000
+)
+
+img = torch.randn(1, 3, 256, 256)
+
+pred = mbvit_xs(img) # (1, 1000)
+```
+
+## Simple Masked Image Modeling
+
+<img src="./images/simmim.png" width="400px"/>
+
+This <a href="https://arxiv.org/abs/2111.09886">paper</a> proposes a simple masked image modeling (SimMIM) scheme, using only a linear projection off the masked tokens into pixel space followed by an L1 loss with the pixel values of the masked patches. Results are competitive with other more complicated approaches.
+
+You can use this as follows
+
+```python
+import torch
+from vit_pytorch import ViT
+from vit_pytorch.simmim import SimMIM
+
+v = ViT(
+    image_size = 256,
+    patch_size = 32,
+    num_classes = 1000,
+    dim = 1024,
+    depth = 6,
+    heads = 8,
+    mlp_dim = 2048
+)
+
+mim = SimMIM(
+    encoder = v,
+    masking_ratio = 0.5  # they found 50% to yield the best results
+)
+
+images = torch.randn(8, 3, 256, 256)
+
+loss = mim(images)
+loss.backward()
+
+# that's all!
+# do the above in a for loop many times with a lot of images and your vision transformer will learn
+
+torch.save(v.state_dict(), './trained-vit.pt')
+```
+
+
+## Masked Autoencoder
+
+<img src="./images/mae.png" width="400px"/>
+
+A new <a href="https://arxiv.org/abs/2111.06377">Kaiming He paper</a> proposes a simple autoencoder scheme where the vision transformer attends to a set of unmasked patches, and a smaller decoder tries to reconstruct the masked pixel values.
+
+<a href="https://www.youtube.com/watch?v=LKixq2S2Pz8">DeepReader quick paper review</a>
+
+<a href="https://www.youtube.com/watch?v=Dp6iICL2dVI">AI Coffeebreak with Letitia</a>
+
+You can use it with the following code
+
+```python
+import torch
+from vit_pytorch import ViT, MAE
+
+v = ViT(
+    image_size = 256,
+    patch_size = 32,
+    num_classes = 1000,
+    dim = 1024,
+    depth = 6,
+    heads = 8,
+    mlp_dim = 2048
+)
+
+mae = MAE(
+    encoder = v,
+    masking_ratio = 0.75,   # the paper recommended 75% masked patches
+    decoder_dim = 512,      # paper showed good results with just 512
+    decoder_depth = 6       # anywhere from 1 to 8
+)
+
+images = torch.randn(8, 3, 256, 256)
+
+loss = mae(images)
+loss.backward()
+
+# that's all!
+# do the above in a for loop many times with a lot of images and your vision transformer will learn
+
+# save your improved vision transformer
+torch.save(v.state_dict(), './trained-vit.pt')
+```
+
 ## Masked Patch Prediction
 
 Thanks to <a href="https://github.com/zankner">Zach</a>, you can train using the original masked patch prediction task presented in the paper, with the following code.
@@ -411,7 +694,7 @@ mpp_trainer = MPP(
 opt = torch.optim.Adam(mpp_trainer.parameters(), lr=3e-4)
 
 def sample_unlabelled_images():
-    return torch.randn(20, 3, 256, 256)
+    return torch.FloatTensor(20, 3, 256, 256).uniform_(0., 1.)
 
 for _ in range(100):
     images = sample_unlabelled_images()
@@ -422,6 +705,85 @@ for _ in range(100):
 
 # save your improved network
 torch.save(model.state_dict(), './pretrained-net.pt')
+```
+
+## Adaptive Token Sampling
+
+<img src="./images/ats.png" width="400px"></img>
+
+This <a href="https://arxiv.org/abs/2111.15667">paper</a> proposes to use the CLS attention scores, re-weighed by the norms of the value heads, as means to discard unimportant tokens at different layers.
+
+```python
+import torch
+from vit_pytorch.ats_vit import ViT
+
+v = ViT(
+    image_size = 256,
+    patch_size = 16,
+    num_classes = 1000,
+    dim = 1024,
+    depth = 6,
+    max_tokens_per_depth = (256, 128, 64, 32, 16, 8), # a tuple that denotes the maximum number of tokens that any given layer should have. if the layer has greater than this amount, it will undergo adaptive token sampling
+    heads = 16,
+    mlp_dim = 2048,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
+
+img = torch.randn(4, 3, 256, 256)
+
+preds = v(img) # (1, 1000)
+
+# you can also get a list of the final sampled patch ids
+# a value of -1 denotes padding
+
+preds, token_ids = v(img, return_sampled_token_ids = True) # (1, 1000), (1, <=8)
+```
+
+## Vision Transformer for Small Datasets
+
+<img src="./images/vit_for_small_datasets.png" width="400px"></img>
+
+This <a href="https://arxiv.org/abs/2112.13492">paper</a> proposes a new image to patch function that incorporates shifts of the image, before normalizing and dividing the image into patches. I have found shifting to be extremely helpful in some other transformers work, so decided to include this for further explorations. It also includes the `LSA` with the learned temperature and masking out of a token's attention to itself.
+
+You can use as follows:
+
+```python
+import torch
+from vit_pytorch.vit_for_small_dataset import ViT
+
+v = ViT(
+    image_size = 256,
+    patch_size = 16,
+    num_classes = 1000,
+    dim = 1024,
+    depth = 6,
+    heads = 16,
+    mlp_dim = 2048,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
+
+img = torch.randn(4, 3, 256, 256)
+
+preds = v(img) # (1, 1000)
+```
+
+You can also use the `SPT` from this paper as a standalone module
+
+```python
+import torch
+from vit_pytorch.vit_for_small_dataset import SPT
+
+spt = SPT(
+    dim = 1024,
+    patch_size = 16,
+    channels = 3
+)
+
+img = torch.randn(4, 3, 256, 256)
+
+tokens = spt(img) # (4, 256, 1024)
 ```
 
 ## Dino
@@ -517,6 +879,41 @@ to cleanup the class and the hooks once you have collected enough data
 
 ```python
 v = v.eject()  # wrapper is discarded and original ViT instance is returned
+```
+
+## Accessing Embeddings
+
+You can similarly access the embeddings with the `Extractor` wrapper
+
+```python
+import torch
+from vit_pytorch.vit import ViT
+
+v = ViT(
+    image_size = 256,
+    patch_size = 32,
+    num_classes = 1000,
+    dim = 1024,
+    depth = 6,
+    heads = 16,
+    mlp_dim = 2048,
+    dropout = 0.1,
+    emb_dropout = 0.1
+)
+
+# import Recorder and wrap the ViT
+
+from vit_pytorch.extractor import Extractor
+v = Extractor(v)
+
+# forward pass now returns predictions and the attention maps
+
+img = torch.randn(1, 3, 256, 256)
+logits, embeddings = v(img)
+
+# there is one extra token due to the CLS token
+
+embeddings # (1, 65, 1024) - (batch x patches x model dim)
 ```
 
 ## Research Ideas
@@ -654,6 +1051,17 @@ Coming from computer vision and new to transformers? Here are some resources tha
 
 
 ## Citations
+```bibtex
+@article{hassani2021escaping,
+    title   = {Escaping the Big Data Paradigm with Compact Transformers},
+    author  = {Ali Hassani and Steven Walton and Nikhil Shah and Abulikemu Abuduweili and Jiachen Li and Humphrey Shi},
+    year    = 2021,
+    url     = {https://arxiv.org/abs/2104.05704},
+    eprint  = {2104.05704},
+    archiveprefix = {arXiv},
+    primaryclass = {cs.CV}
+}
+```
 
 ```bibtex
 @misc{dosovitskiy2020image,
@@ -679,10 +1087,10 @@ Coming from computer vision and new to transformers? Here are some resources tha
 
 ```bibtex
 @misc{yuan2021tokenstotoken,
-    title     = {Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet},
-    author    = {Li Yuan and Yunpeng Chen and Tao Wang and Weihao Yu and Yujun Shi and Francis EH Tay and Jiashi Feng and Shuicheng Yan},
-    year      = {2021},
-    eprint    = {2101.11986},
+    title   = {Tokens-to-Token ViT: Training Vision Transformers from Scratch on ImageNet},
+    author  = {Li Yuan and Yunpeng Chen and Tao Wang and Weihao Yu and Yujun Shi and Francis EH Tay and Jiashi Feng and Shuicheng Yan},
+    year    = {2021},
+    eprint  = {2101.11986},
     archivePrefix = {arXiv},
     primaryClass = {cs.CV}
 }
@@ -788,11 +1196,99 @@ Coming from computer vision and new to transformers? Here are some resources tha
 ```
 
 ```bibtex
+@misc{zhang2021aggregating,
+    title   = {Aggregating Nested Transformers},
+    author  = {Zizhao Zhang and Han Zhang and Long Zhao and Ting Chen and Tomas Pfister},
+    year    = {2021},
+    eprint  = {2105.12723},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{chen2021regionvit,
+    title   = {RegionViT: Regional-to-Local Attention for Vision Transformers}, 
+    author  = {Chun-Fu Chen and Rameswar Panda and Quanfu Fan},
+    year    = {2021},
+    eprint  = {2106.02689},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{wang2021crossformer,
+    title   = {CrossFormer: A Versatile Vision Transformer Hinging on Cross-scale Attention}, 
+    author  = {Wenxiao Wang and Lu Yao and Long Chen and Binbin Lin and Deng Cai and Xiaofei He and Wei Liu},
+    year    = {2021},
+    eprint  = {2108.00154},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
 @misc{caron2021emerging,
     title   = {Emerging Properties in Self-Supervised Vision Transformers},
     author  = {Mathilde Caron and Hugo Touvron and Ishan Misra and Hervé Jégou and Julien Mairal and Piotr Bojanowski and Armand Joulin},
     year    = {2021},
     eprint  = {2104.14294},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{he2021masked,
+    title   = {Masked Autoencoders Are Scalable Vision Learners}, 
+    author  = {Kaiming He and Xinlei Chen and Saining Xie and Yanghao Li and Piotr Dollár and Ross Girshick},
+    year    = {2021},
+    eprint  = {2111.06377},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{xie2021simmim,
+    title   = {SimMIM: A Simple Framework for Masked Image Modeling}, 
+    author  = {Zhenda Xie and Zheng Zhang and Yue Cao and Yutong Lin and Jianmin Bao and Zhuliang Yao and Qi Dai and Han Hu},
+    year    = {2021},
+    eprint  = {2111.09886},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{fayyaz2021ats,
+    title   = {ATS: Adaptive Token Sampling For Efficient Vision Transformers},
+    author  = {Mohsen Fayyaz and Soroush Abbasi Kouhpayegani and Farnoush Rezaei Jafari and Eric Sommerlade and Hamid Reza Vaezi Joze and Hamed Pirsiavash and Juergen Gall},
+    year    = {2021},
+    eprint  = {2111.15667},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{mehta2021mobilevit,
+    title   = {MobileViT: Light-weight, General-purpose, and Mobile-friendly Vision Transformer},
+    author  = {Sachin Mehta and Mohammad Rastegari},
+    year    = {2021},
+    eprint  = {2110.02178},
+    archivePrefix = {arXiv},
+    primaryClass = {cs.CV}
+}
+```
+
+```bibtex
+@misc{lee2021vision,
+    title   = {Vision Transformer for Small-Size Datasets}, 
+    author  = {Seung Hoon Lee and Seunghyun Lee and Byung Cheol Song},
+    year    = {2021},
+    eprint  = {2112.13492},
     archivePrefix = {arXiv},
     primaryClass = {cs.CV}
 }
